@@ -53,8 +53,8 @@ describe('TransactionForm Component', () => {
     expect(emailInput).toHaveValue('customer@example.com');
 
     const orderInput = screen.getByLabelText(/order number/i);
-    await user.type(orderInput, '123456789');
-    expect(orderInput).toHaveValue('123456789');
+    await user.type(orderInput, '1234567890');
+    expect(orderInput).toHaveValue('1234567890');
 
     const amountInput = screen.getByLabelText(/amount/i);
     await user.clear(amountInput);
@@ -72,7 +72,7 @@ describe('TransactionForm Component', () => {
     const user = userEvent.setup();
 
     await user.type(screen.getByLabelText(/email/i), 'customer@example.com');
-    await user.type(screen.getByLabelText(/order number/i), '123456789');
+    await user.type(screen.getByLabelText(/order number/i), '1234567890');
 
     const amountInput = screen.getByLabelText(/amount/i);
     await user.clear(amountInput);
@@ -107,7 +107,7 @@ describe('TransactionForm Component', () => {
 
     // Fill form
     await user.type(screen.getByLabelText(/email/i), 'customer@example.com');
-    await user.type(screen.getByLabelText(/order number/i), '123456789');
+    await user.type(screen.getByLabelText(/order number/i), '1234567890');
     await user.type(screen.getByLabelText(/transaction number/i), 'TXN123');
 
     const amountInput = screen.getByLabelText(/amount/i);
@@ -135,7 +135,7 @@ describe('TransactionForm Component', () => {
 
     // Fill form
     await user.type(screen.getByLabelText(/email/i), 'customer@example.com');
-    await user.type(screen.getByLabelText(/order number/i), '123456789');
+    await user.type(screen.getByLabelText(/order number/i), '1234567890');
     await user.type(screen.getByLabelText(/transaction number/i), 'TXN123');
 
     const amountInput = screen.getByLabelText(/amount/i);
