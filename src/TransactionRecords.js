@@ -361,7 +361,7 @@ export default function TransactionRecords() {
       }
 
       setRecords((prev) => prev.filter((r) => r._id !== rejectId));
-      showNotification('Transaction rejected and customer notified via email', 'success');
+      showNotification('Payment rejected. Customer notification queued.', 'success');
     } catch (error) {
       console.error('Error rejecting transaction:', error);
       showNotification(`Error: ${error.message}`, 'error');
@@ -589,15 +589,11 @@ export default function TransactionRecords() {
                           >
                             Confirm
                           </Button>
-                          <Button
-                            variant="outlined"
-                            color="error"
-                            size="small"
-                            onClick={() => handleRejectClick(rec._id)}
-                          >
-                            Reject
-                          </Button>
+
                         </>
+                      )}
+                      {(userRole === 'admin' || (userRole === 'accounting' && tab === 'unconfirmed')) && !rec.confirmed && !rec.rejected && !rec.voided && !rec.refunded && !rec.refundRequested && (
+                        <Button variant="outlined" color="error" size="small" onClick={() => handleRejectClick(rec._id)}>Reject</Button>
                       )}
                       {userRole === 'processTeam' && rec.orderSummary?.releasedAt && !rec.orderSummary?.holds.length && rec.orderSummary?.remainingCents === 0 && !rec.processed && (
                         <Button

@@ -32,3 +32,20 @@ it('refreshes order balances after accounting actions', async () => {
   expect(await screen.findByRole('button', { name: 'Retry release' })).toBeInTheDocument();
   expect(apiFetch).toHaveBeenCalledWith('/orders/order1/retry-release', expect.objectContaining({ method: 'PATCH' }));
 });
+it('lets admins reject pending payments from All Transactions without granting confirmation', async () => {
+  localStorage.setItem('role', 'admin');
+  apiFetch.mockResolvedValue({ ok: true, json: async () => [{ _id: 'pending', email: 'buyer@example.com', orderNumber: '000123456', amount: 500, transactionNumber: 'ADMIN-REJECT', transactionType: 'zelle', confirmed: false, orderSummary: summary }] });
+  render(<MemoryRouter><TransactionRecords /></MemoryRouter>);
+  fireEvent.click(await screen.findByRole('button', { name: 'Reject', exact: true }));
+  expect(screen.queryByRole('button', { name: 'Confirm', exact: true })).not.toBeInTheDocument();
+  fireEvent.click(await screen.findByRole('button', { name: 'Reject & Notify Customer' }));
+  expect(await screen.findByText('Payment rejected. Customer notification queued.')).toBeInTheDocument();
+  expect(apiFetch).toHaveBeenCalledWith('/transactions/pending/reject', expect.objectContaining({ method: 'PATCH' }));
+});
+it.each([{ confirmed: true }, { rejected: true }, { voided: true }, { refundRequested: true }, { refunded: true }])('hides admin rejection for ineligible payments: %j', async flags => {
+  localStorage.setItem('role', 'admin');
+  apiFetch.mockResolvedValue({ ok: true, json: async () => [{ _id: 'protected', email: 'buyer@example.com', orderNumber: '000123456', amount: 500, transactionNumber: 'PROTECTED', transactionType: 'zelle', orderSummary: summary, ...flags }] });
+  render(<MemoryRouter><TransactionRecords /></MemoryRouter>);
+  await screen.findByText('buyer@example.com');
+  expect(screen.queryByRole('button', { name: 'Reject', exact: true })).not.toBeInTheDocument();
+});

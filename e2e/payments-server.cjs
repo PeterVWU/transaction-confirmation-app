@@ -32,7 +32,7 @@ async function start() {
   const Reference = require(path.join(backend, 'models/PaymentReference'));
   const Job = require(path.join(backend, 'models/PaymentJob'));
   await Promise.all([Payment.init(), Order.init(), Reference.init(), Job.init()]);
-  for (const role of ['accounting', 'processTeam']) await User.create({ email: `${role.toLowerCase()}@vapewholesaleusa.com`, password: await dependency('bcryptjs').hash('BrowserTest123!', 4), role });
+  for (const role of ['accounting', 'processTeam', 'admin']) await User.create({ email: `${role.toLowerCase()}@vapewholesaleusa.com`, password: await dependency('bcryptjs').hash('BrowserTest123!', 4), role });
   let running = false;
   let resetting = false;
   const app = express();

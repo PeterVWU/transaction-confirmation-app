@@ -21,6 +21,7 @@ These credentials are seeded only by the isolated demo server:
 | --- | --- | --- |
 | Accounting | accounting@vapewholesaleusa.com | `BrowserTest123!` |
 | Fulfillment | processteam@vapewholesaleusa.com | `BrowserTest123!` |
+| Admin | admin@vapewholesaleusa.com | `BrowserTest123!` |
 
 Every valid mock order has a $1,500 USD total. To test installments:
 
@@ -58,3 +59,5 @@ Use the matching `feature/ecom-343-multiple-payments` backend revision. See [the
 Real payment writes remain paused until the backend migration is verified and `MULTIPLE_PAYMENTS_ENABLED=true` is configured. Deploy the matching frontend and backend together after the documented rollout prerequisites. The local demo enables its own test-only feature flag automatically.
 
 When the manual demo occupies ports 3000/3001, run browser tests with `ECOM343_TEST_FRONTEND_PORT=3311 ECOM343_TEST_BACKEND_PORT=3310 npm run e2e`.
+
+Accounting and admin can reject unconfirmed payments from the payment queue. Rejection keeps the record and queues a customer notification. Confirmed payments cannot be rejected; confirmation and correction remain accounting-only.
