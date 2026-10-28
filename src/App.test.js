@@ -1,8 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import App from './App';
-
-test('renders learn react link', () => {
+jest.mock('./api', () => ({ apiFetch: jest.fn().mockResolvedValue({ ok: false }), submitTransaction: jest.fn() }));
+it('renders the payment submission portal', async () => {
+  localStorage.clear();
   render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
+  expect(await screen.findByText('Transaction Confirmation Portal')).toBeInTheDocument();
+  expect(screen.getByText(/one transfer per form/i)).toBeInTheDocument();
 });

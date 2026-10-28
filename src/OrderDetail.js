@@ -12,6 +12,7 @@ import {
   TableRow,
 } from '@mui/material';
 import { useParams } from 'react-router';
+import PaymentOrders from './PaymentOrders';
 import { apiFetch } from './api'; // <-- Import your helper
 
 export default function OrderDetail() {
@@ -21,10 +22,12 @@ export default function OrderDetail() {
 
   useEffect(() => {
     const fetchOrder = async () => {
+      try {
       const res = await apiFetch(`/magento/order/${orderNumber}`);
       const data = await res.json();
       setOrderData(data);
-      setLoading(false);
+      } catch (_) { setOrderData(null); }
+      finally { setLoading(false); }
     };
     fetchOrder();
   }, [orderNumber]);
@@ -36,7 +39,7 @@ export default function OrderDetail() {
       </Box>
     );
 
-  if (!orderData || !orderData.order) return <Typography color="error">Order not found.</Typography>;
+  if (!orderData || !orderData.order) return <><PaymentOrders orderNumber={orderNumber} /><Typography color="error">Magento order data is unavailable.</Typography></>;
 
   const { order, invoices, adminUrl, salesRep } = orderData;
 
@@ -50,6 +53,7 @@ export default function OrderDetail() {
           </Button>
         )}
       </Box>
+      <PaymentOrders orderNumber={orderNumber} />
       <Divider sx={{ mb: 2 }} />
 
       <Typography variant="subtitle1" gutterBottom>

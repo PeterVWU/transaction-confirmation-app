@@ -21,24 +21,21 @@ import {
   DialogActions,
   Stack,
   Divider,
-  Chip,
   Snackbar,
   Alert,
   TablePagination,
 } from '@mui/material';
 import { Link } from 'react-router';
+import PaymentOrders, { money } from './PaymentOrders';
 import { apiFetch } from './api';
 
 export default function TransactionRecords() {
+  const [correctionPayment, setCorrectionPayment] = useState(null);
+  const [correctionReason, setCorrectionReason] = useState('');
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState('');
   const [search, setSearch] = useState('');
-  const getDefaultTab = (role) => {
-    if (role === 'accounting') return 'unconfirmed'; // Unconfirmed Transactions
-    if (role === 'processTeam') return 'unprocessed'; // Unprocessed Records
-    return 'all'; // All Transactions (for admin, customerService, etc.)
-  };
   const [tab, setTab] = useState('all'); // Use string instead of number
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
@@ -72,7 +69,6 @@ export default function TransactionRecords() {
   const [confirmErrorDialogOpen, setConfirmErrorDialogOpen] = useState(false);
   const [confirmErrorMessage, setConfirmErrorMessage] = useState('');
   const [confirmErrorDetails, setConfirmErrorDetails] = useState(null);
-  const [confirmErrorTransactionId, setConfirmErrorTransactionId] = useState(null);
 
   // Add notification state
   const [notification, setNotification] = useState({
@@ -81,43 +77,16 @@ export default function TransactionRecords() {
     severity: 'success', // 'success', 'error', 'warning', 'info'
   });
 
+  const [revision, setRevision] = useState(0);
+
   // Helper function to show notifications
   const showNotification = (message, severity = 'success') => {
+    if (severity !== 'error') setRevision(value => value + 1);
     setNotification({
       open: true,
       message,
       severity,
     });
-  };
-
-  // Add bypass confirmation handler
-  const handleBypassConfirm = async () => {
-    try {
-      console.log('Bypassing confirmation for transaction:', confirmErrorTransactionId);
-      const response = await apiFetch(`/transactions/${confirmErrorTransactionId}/bypass-confirm`, {
-        method: 'PATCH',
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        showNotification(`Bypass failed: ${errorData.message}`, 'error');
-        return;
-      }
-
-      const result = await response.json();
-      showNotification('Transaction confirmed via bypass. Process team has been notified.', 'warning');
-
-      setRecords((prev) =>
-        prev.map((rec) => (rec._id === confirmErrorTransactionId ? { ...rec, confirmed: true } : rec))
-      );
-      setConfirmErrorDialogOpen(false);
-      setConfirmErrorTransactionId(null);
-      setConfirmErrorMessage('');
-      setConfirmErrorDetails(null);
-    } catch (error) {
-      console.error('Error during bypass confirmation:', error);
-      showNotification('Network error during bypass confirmation', 'error');
-    }
   };
 
   const handleNotificationClose = () => {
@@ -153,7 +122,7 @@ export default function TransactionRecords() {
     };
     fetchRecords();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, page, rowsPerPage, search]);
+  }, [tab, page, rowsPerPage, search, revision]);
 
   // Debug: Track error dialog state changes
   useEffect(() => {
@@ -210,7 +179,6 @@ export default function TransactionRecords() {
 
         setConfirmErrorMessage(errorData.message || 'Failed to confirm transaction');
         setConfirmErrorDetails(errorData);
-        setConfirmErrorTransactionId(selectedId); // Store the transaction ID for bypass
         console.log('Setting confirmErrorDialogOpen to true');
         setConfirmErrorDialogOpen(true);
         setConfirmDialogOpen(false);
@@ -223,7 +191,7 @@ export default function TransactionRecords() {
       if (result.warning) {
         showNotification(`Transaction confirmed with warning: ${result.warning}`, 'warning');
       } else {
-        showNotification('Transaction confirmed successfully', 'success');
+        showNotification(result.orderReleased ? 'Payment confirmed; order released.' : 'Payment confirmed. Order awaits full payment or release checks.', 'success');
       }
 
       setRecords((prev) => prev.map((rec) => (rec._id === selectedId ? { ...rec, confirmed: true } : rec)));
@@ -233,7 +201,6 @@ export default function TransactionRecords() {
       console.error('Error confirming transaction:', error);
       setConfirmErrorMessage('Network error occurred while confirming transaction');
       setConfirmErrorDetails({ error: error.message });
-      setConfirmErrorTransactionId(selectedId); // Store the transaction ID for bypass
       console.log('Setting confirmErrorDialogOpen to true (catch block)');
       setConfirmErrorDialogOpen(true);
       setConfirmDialogOpen(false);
@@ -272,13 +239,18 @@ export default function TransactionRecords() {
 
     setRefundError('');
 
-    await apiFetch(`/transactions/${refundId}/refund`, {
+    const response = await apiFetch(`/transactions/${refundId}/refund`, {
       method: 'PATCH',
       body: JSON.stringify({
         refundAmount,
         message: refundMessage,
       }),
     });
+    if (!response.ok) {
+      const result = await response.json();
+      setRefundError(result.message);
+      return;
+    }
     // Refresh current page
     const serverPage = page + 1;
     const res = await apiFetch(`/transactions?page=${serverPage}&limit=${rowsPerPage}`);
@@ -306,8 +278,10 @@ export default function TransactionRecords() {
   };
 
   const handleDelete = async () => {
-    await apiFetch(`/transactions/${deleteId}`, { method: 'DELETE' });
-    setRecords((prev) => prev.filter((r) => r._id !== deleteId));
+    const response = await apiFetch(`/transactions/${deleteId}`, { method: 'DELETE', body: JSON.stringify({ reason: 'Administrative removal of unused submission' }) });
+    const result = await response.json();
+    if (!response.ok) { showNotification(result.message, 'error'); return; }
+    showNotification('Submission voided.');
     setDeleteDialogOpen(false);
     setDeleteId(null);
   };
@@ -377,7 +351,8 @@ export default function TransactionRecords() {
   const handleReject = async () => {
     try {
       const response = await apiFetch(`/transactions/${rejectId}/reject`, {
-        method: 'PATCH', // Changed from DELETE to PATCH
+        method: 'PATCH',
+        body: JSON.stringify({ reason: 'Payment information could not be verified' }), // Changed from DELETE to PATCH
       });
 
       if (!response.ok) {
@@ -403,7 +378,7 @@ export default function TransactionRecords() {
 
   const filteredRecords = records
     .filter((rec) => {
-      if (tab === 'unconfirmed') return !rec.confirmed;
+      if (tab === 'unconfirmed') return !rec.confirmed && !rec.rejected && !rec.voided;
       if (tab === 'all') return true;
       if (tab === 'refund') return rec.refundRequested === true;
       if (tab === 'unprocessed') return rec.confirmed && !rec.processed;
@@ -422,6 +397,8 @@ export default function TransactionRecords() {
   const pagedRecords = isServerPaged
     ? filteredRecords // server already returned the page; we still apply in-page filters (none for 'all' tab/no search)
     : filteredRecords.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+
+  if (tab === 'unprocessed') return <><Button onClick={() => setTab('all')}>Payment queue</Button><PaymentOrders eligibleOnly /></>;
 
   if (loading)
     return (
@@ -507,6 +484,7 @@ export default function TransactionRecords() {
                 <TableCell>Email</TableCell>
                 <TableCell>Order #</TableCell>
                 <TableCell>Amount</TableCell>
+                <TableCell>Order balance</TableCell>
                 <TableCell>Transaction Type</TableCell>
                 <TableCell>Transaction #</TableCell>
                 <TableCell>Time</TableCell>
@@ -535,6 +513,7 @@ export default function TransactionRecords() {
                   <TableCell>{rec.email}</TableCell>
                   <TableCell>{rec.orderNumber}</TableCell>
                   <TableCell>${rec.amount}</TableCell>
+                  <TableCell>{rec.orderSummary ? <>Total: {money(rec.orderSummary.totalCents)}<br />Confirmed: {money(rec.orderSummary.confirmedCents)}<br />Remaining: {money(rec.orderSummary.remainingCents)}<br />Holds: {rec.orderSummary.holds.join(', ') || 'None'}</> : 'Order review required'}</TableCell>
                   <TableCell>
                     <Box
                       sx={{
@@ -566,7 +545,7 @@ export default function TransactionRecords() {
                   </TableCell>
                   <TableCell>{rec.transactionNumber}</TableCell>
                   <TableCell>{rec.createdAt ? new Date(rec.createdAt).toLocaleString() : ''}</TableCell>
-                  {tab === 'all' && <TableCell>{rec.confirmed ? 'Yes' : 'No'}</TableCell>}
+                  {tab === 'all' && <TableCell>{rec.voided ? 'Voided' : rec.rejected ? 'Rejected' : rec.confirmed ? 'Yes' : 'No'}</TableCell>}
                   {tab === 'all' && <TableCell>{rec.processed ? 'Yes' : 'No'}</TableCell>}
                   {tab === 'all' && <TableCell>{rec.refunded ? 'Yes' : 'No'}</TableCell>}
                   {tab === 'refund' && (
@@ -599,6 +578,7 @@ export default function TransactionRecords() {
                   )}
                   <TableCell align="center">
                     <Stack direction="row" spacing={1} justifyContent="center">
+                      {userRole === 'accounting' && rec.rejected && !rec.voided && <Button onClick={() => { setCorrectionPayment({ ...rec }); setCorrectionReason(''); }}>Correct and reopen</Button>}
                       {userRole === 'accounting' && !rec.confirmed && tab === 'unconfirmed' && (
                         <>
                           <Button
@@ -619,7 +599,7 @@ export default function TransactionRecords() {
                           </Button>
                         </>
                       )}
-                      {userRole === 'processTeam' && rec.confirmed && !rec.processed && (
+                      {userRole === 'processTeam' && rec.orderSummary?.releasedAt && !rec.orderSummary?.holds.length && rec.orderSummary?.remainingCents === 0 && !rec.processed && (
                         <Button
                           variant="contained"
                           color="primary"
@@ -632,7 +612,7 @@ export default function TransactionRecords() {
                       <Button variant="outlined" size="small" component={Link} to={`/order/${rec.orderNumber}`}>
                         View Order
                       </Button>
-                      {tab === 'all' && !rec.refunded && !rec.refundRequested && (
+                      {tab === 'all' && rec.confirmed && !rec.refunded && !rec.refundRequested && (
                         <Button
                           variant="contained"
                           color="warning"
@@ -654,6 +634,7 @@ export default function TransactionRecords() {
                                   await apiFetch(`/transactions/${rec._id}/mark-refunded`, {
                                     method: 'PATCH',
                                   });
+                                  setRevision(value => value + 1);
                                   setRecords((prev) =>
                                     prev.map((r) =>
                                       r._id === rec._id ? { ...r, refunded: true, refundRequested: false } : r
@@ -672,6 +653,7 @@ export default function TransactionRecords() {
                                   await apiFetch(`/transactions/${rec._id}/cancel-refund`, {
                                     method: 'PATCH',
                                   });
+                                  setRevision(value => value + 1);
                                   setRecords((prev) =>
                                     prev.map((r) => (r._id === rec._id ? { ...r, refundRequested: false } : r))
                                   );
@@ -683,14 +665,14 @@ export default function TransactionRecords() {
                           )}
                         </>
                       )}
-                      {userRole === 'admin' && tab === 'all' && (
+                      {userRole === 'admin' && tab === 'all' && !rec.confirmed && !rec.refunded && !rec.voided && (
                         <Button
                           variant="outlined"
                           color="error"
                           size="small"
                           onClick={() => handleDeleteClick(rec._id)}
                         >
-                          Delete
+                          Void
                         </Button>
                       )}
                     </Stack>
@@ -722,6 +704,22 @@ export default function TransactionRecords() {
         </Box>
       </Paper>
 
+      <Dialog open={!!correctionPayment} onClose={() => setCorrectionPayment(null)}>
+        <DialogTitle>Correct rejected payment</DialogTitle>
+        <DialogContent>
+          {correctionPayment && ['email', 'amount', 'orderNumber', 'transactionNumber', 'transactionType'].map(field => <TextField key={field} fullWidth margin="normal" label={field} value={correctionPayment[field]} onChange={event => setCorrectionPayment({ ...correctionPayment, [field]: event.target.value })} />)}
+          <TextField fullWidth margin="normal" label="Correction reason" value={correctionReason} onChange={event => setCorrectionReason(event.target.value)} />
+        </DialogContent>
+        <DialogActions><Button onClick={() => setCorrectionPayment(null)}>Cancel</Button><Button disabled={!correctionReason.trim()} onClick={async () => {
+          try {
+            const response = await apiFetch(`/transactions/${correctionPayment._id}/correct`, { method: 'PATCH', body: JSON.stringify({ ...correctionPayment, reason: correctionReason }) });
+            const result = await response.json();
+            if (!response.ok) { showNotification(result.message, 'error'); return; }
+            setCorrectionPayment(null);
+            showNotification('Payment corrected and reopened.');
+          } catch (failure) { showNotification(failure.message, 'error'); }
+        }}>Save and reopen</Button></DialogActions>
+      </Dialog>
       {/* Confirmation Dialog */}
       <Dialog open={confirmDialogOpen} onClose={handleDialogClose} PaperProps={{ sx: { borderRadius: 3 } }}>
         <DialogTitle>Confirm Transaction</DialogTitle>
@@ -735,7 +733,7 @@ export default function TransactionRecords() {
             <strong>Amount:</strong> ${selectedId && records.find((r) => r._id === selectedId)?.amount}
           </Typography>
           <Typography variant="body2" color="warning.main">
-            This will also capture the invoice in Magento.
+            This confirms this payment only. The order is released after full payment and all review holds are resolved.
           </Typography>
         </DialogContent>
         <DialogActions>
@@ -802,11 +800,11 @@ export default function TransactionRecords() {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onClose={handleDeleteDialogClose} PaperProps={{ sx: { borderRadius: 3 } }}>
-        <DialogTitle>Delete Transaction</DialogTitle>
+        <DialogTitle>Void Submission</DialogTitle>
         <Divider />
         <DialogContent sx={{ bgcolor: '#f9f9f9' }}>
           <DialogContentText sx={{ mb: 2 }}>
-            Are you sure you want to delete this transaction? This action cannot be undone.
+            Void this unused submission? The record and payment reference will be preserved for audit.
           </DialogContentText>
           <Typography variant="body2" sx={{ mb: 1 }}>
             <strong>Order Number:</strong> {deleteId && records.find((r) => r._id === deleteId)?.orderNumber}
@@ -842,8 +840,7 @@ export default function TransactionRecords() {
             <strong>Customer Email:</strong> {rejectId && records.find((r) => r._id === rejectId)?.email}
           </Typography>
           <Typography variant="body2" color="warning.main" sx={{ mt: 2 }}>
-            ⚠️ This will permanently remove the transaction and send an email to the customer asking them to resubmit
-            with correct information.
+            The payment will be preserved as rejected. Accounting can correct it with a reason and reopen it for confirmation.
           </Typography>
           <Typography variant="body2" color="info.main" sx={{ mt: 1 }}>
             📧 An email will be automatically sent to the customer with instructions to fill out the form again.
@@ -938,7 +935,7 @@ export default function TransactionRecords() {
         </DialogContent>
         <DialogActions sx={{ flexDirection: 'column', gap: 1, p: 2 }}>
           <Typography variant="body2" color="warning.main" sx={{ mb: 1, textAlign: 'center' }}>
-            ⚠️ <strong>Special Bypass Option:</strong> Use only when manual order processing is required
+            Use Order payments to review balances, holds, and manual invoice handling.
           </Typography>
           <Box sx={{ display: 'flex', gap: 1, width: '100%' }}>
             <Button
@@ -952,18 +949,7 @@ export default function TransactionRecords() {
             >
               Understood
             </Button>
-            <Button
-              onClick={handleBypassConfirm}
-              color="warning"
-              variant="contained"
-              fullWidth
-              sx={{
-                bgcolor: 'warning.main',
-                '&:hover': { bgcolor: 'warning.dark' },
-              }}
-            >
-              Bypass & Confirm
-            </Button>
+
           </Box>
         </DialogActions>
       </Dialog>

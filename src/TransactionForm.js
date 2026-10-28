@@ -11,6 +11,12 @@ export default function TransactionForm() {
   const [message, setMessage] = useState('');
   const [errors, setErrors] = useState({});
 
+  const change = (field, setter) => (event) => {
+    setter(event.target.value);
+    setErrors(previous => ({ ...previous, [field]: undefined }));
+    setMessage('');
+  };
+
   const validate = () => {
     const errs = {};
     // Email validation
@@ -31,7 +37,7 @@ export default function TransactionForm() {
     }
 
     // Order number validation: at least 9 digits with optional suffix like -1, -2, etc.
-    if (!orderNumber || !/^[0-9]{9,}(-[0-9]+)*$/.test(orderNumber)) {
+    if (!orderNumber || !/^[0-9]{9,}(-[0-9]+)*$/.test(orderNumber.trim())) {
       errs.orderNumber =
         'Order number must be at least 9 digits (including leading zeros) with optional suffix like -1, -2. Examples: 000111111, 0000111111-1';
     }
@@ -53,13 +59,26 @@ export default function TransactionForm() {
     if (Object.keys(errs).length > 0) return;
 
     // Submit to backend
-    const res = await submitTransaction({
+    let res;
+    try {
+      res = await submitTransaction({
       email,
       amount,
-      orderNumber,
-      transactionNumber,
+      orderNumber: orderNumber.trim(),
+      transactionNumber: transactionNumber.trim(),
       transactionType, // <-- add this
     });
+
+    } catch (error) {
+      setMessage('Unable to submit. Please try again.');
+      return;
+    }
+
+    if (res.code === 'DUPLICATE_PAYMENT_REFERENCE') {
+      setErrors({ transactionNumber: res.message });
+      return;
+    }
+    if (res.errors) setErrors(res.errors);
 
     // Check for duplicate order number error
     if (res.message === 'Order number already exists.') {
@@ -94,6 +113,7 @@ export default function TransactionForm() {
       <Typography variant="h5" gutterBottom>
         Submit Transaction
       </Typography>
+      <Typography sx={{ mb: 2 }}>Submit one transfer per form. You may reuse the original order number for each installment. Only USD payments are supported.</Typography>
       {message && (
         <Alert severity={message === 'Transaction submitted!' ? 'success' : 'error'} sx={{ mb: 2 }}>
           {message}
@@ -103,7 +123,7 @@ export default function TransactionForm() {
         <TextField
           label="Email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={change('email', setEmail)}
           fullWidth
           margin="normal"
           required
@@ -113,7 +133,7 @@ export default function TransactionForm() {
         <TextField
           label="Amount"
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          onChange={change('amount', setAmount)}
           type="number"
           fullWidth
           margin="normal"
@@ -122,8 +142,10 @@ export default function TransactionForm() {
           helperText={errors.amount}
         />
         <TextField
+          label="Transaction Type"
+          inputProps={{ 'aria-label': 'Transaction Type' }}
           value={transactionType}
-          onChange={(e) => setTransactionType(e.target.value)}
+          onChange={change('transactionType', setTransactionType)}
           fullWidth
           margin="normal"
           required
@@ -144,14 +166,14 @@ export default function TransactionForm() {
         <TextField
           label="Order Number"
           value={orderNumber}
-          onChange={(e) => setOrderNumber(e.target.value)}
+          onChange={change('orderNumber', setOrderNumber)}
           fullWidth
           margin="normal"
           required
           error={!!errors.orderNumber}
           helperText={
             errors.orderNumber
-              ? 'Order number must be at least 9 digits (including leading zeros) with optional suffix. Examples: 000123456, 0000123456-1'
+              ? errors.orderNumber
               : 'Order number is required and must be at least 9 digits (including leading zeros). Suffixes like -1, -2 are allowed.'
           }
         />
@@ -162,14 +184,13 @@ export default function TransactionForm() {
         <TextField
           label="Transaction Number"
           value={transactionNumber}
-          onChange={(e) => setTransactionNumber(e.target.value)}
+          onChange={change('transactionNumber', setTransactionNumber)}
           fullWidth
           margin="normal"
           required
           error={!!errors.transactionNumber}
           helperText={
-            errors.transactionNumber &&
-            'Transaction number is required. Incorrect value will result in unprocessed order.'
+            errors.transactionNumber
           }
         />
         <Button type="submit" variant="contained" color="primary" fullWidth sx={{ mt: 2 }}>

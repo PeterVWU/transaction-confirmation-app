@@ -1,167 +1,34 @@
-/**
- * Frontend Component Tests - TransactionRecords Component
- */
-
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { BrowserRouter } from 'react-router-dom';
-import TransactionRecords from '../TransactionRecords';
-
-// Mock the api module
-jest.mock('../api', () => ({
-  apiFetch: jest.fn(),
-}));
-
-const { apiFetch } = require('../api');
-
-const mockTransactions = [
-  {
-    _id: '1',
-    email: 'customer1@example.com',
-    orderNumber: '111111111',
-    amount: 100,
-    transactionType: 'Zelle',
-    transactionNumber: 'TXN1',
-    confirmed: false,
-    processed: false,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    _id: '2',
-    email: 'customer2@example.com',
-    orderNumber: '222222222',
-    amount: 200,
-    transactionType: 'Venmo',
-    transactionNumber: 'TXN2',
-    confirmed: true,
-    processed: false,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    _id: '3',
-    email: 'customer3@example.com',
-    orderNumber: '333333333',
-    amount: 300,
-    transactionType: 'Zelle',
-    transactionNumber: 'TXN3',
-    confirmed: true,
-    processed: true,
-    createdAt: new Date().toISOString(),
-  },
-];
-
-const renderTransactionRecords = (role = 'admin') => {
-  // Set localStorage for role
-  localStorage.setItem('role', role);
-
-  return render(
-    <BrowserRouter>
-      <TransactionRecords />
-    </BrowserRouter>
-  );
-};
-
-describe('TransactionRecords Component', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    localStorage.clear();
-  });
-
-  it('should fetch and display transactions', async () => {
-    apiFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockTransactions,
-    });
-
-    renderTransactionRecords();
-
-    await waitFor(() => {
-      expect(screen.getByText('111111111')).toBeInTheDocument();
-      expect(screen.getByText('222222222')).toBeInTheDocument();
-      expect(screen.getByText('333333333')).toBeInTheDocument();
-    });
-  });
-
-  it('should display loading state initially', () => {
-    apiFetch.mockReturnValue(new Promise(() => {})); // Never resolves
-
-    renderTransactionRecords();
-
-    expect(screen.getByRole('progressbar')).toBeInTheDocument();
-  });
-
-  it('should display transaction details in table', async () => {
-    apiFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockTransactions,
-    });
-
-    renderTransactionRecords();
-
-    await waitFor(() => {
-      expect(screen.getByText('customer1@example.com')).toBeInTheDocument();
-      expect(screen.getByText('$100')).toBeInTheDocument();
-      expect(screen.getByText('Zelle')).toBeInTheDocument();
-    });
-  });
-
-  it('should show confirm button for admin on pending transactions', async () => {
-    apiFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockTransactions,
-    });
-
-    renderTransactionRecords('admin');
-
-    await waitFor(() => {
-      expect(screen.getAllByRole('button', { name: /confirm/i })).toHaveLength(1);
-    });
-  });
-
-  it('should show process button for processTeam on confirmed transactions', async () => {
-    apiFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockTransactions,
-    });
-
-    renderTransactionRecords('processTeam');
-
-    await waitFor(() => {
-      expect(screen.getAllByRole('button', { name: /process|mark/i })).toBeDefined();
-    });
-  });
-
-  it('should handle error when fetching transactions fails', async () => {
-    apiFetch.mockResolvedValueOnce({
-      ok: false,
-      json: async () => ({ message: 'Server error' }),
-    });
-
-    renderTransactionRecords();
-
-    await waitFor(() => {
-      expect(screen.getByText(/error|failed/i)).toBeInTheDocument();
-    });
-  });
-
-  it('should filter transactions by status', async () => {
-    apiFetch.mockResolvedValue({
-      ok: true,
-      json: async () => mockTransactions,
-    });
-
-    renderTransactionRecords();
-    const user = userEvent.setup();
-
-    await waitFor(() => {
-      expect(screen.getByText('111111111')).toBeInTheDocument();
-    });
-
-    // Click on pending filter if available
-    const pendingFilter = screen.queryByRole('tab', { name: /pending/i });
-    if (pendingFilter) {
-      await user.click(pendingFilter);
-    }
-  });
+import { render, screen, fireEvent } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
+import TransactionRecords from './TransactionRecords';
+import { apiFetch } from './api';
+jest.mock('./api', () => ({ apiFetch: jest.fn() }));
+const summary = { _id: 'order1', orderNumber: '000123456', totalCents: 150000, confirmedCents: 50000, refundedCents: 0, remainingCents: 100000, overpaidCents: 0, holds: [], invoiceState: 'pending', releaseState: 'pending' };
+beforeEach(() => { jest.clearAllMocks(); localStorage.clear(); });
+it('shows authoritative order balances in the accounting payment queue', async () => {
+  localStorage.setItem('role', 'accounting');
+  apiFetch.mockResolvedValue({ ok: true, json: async () => [{ _id: '1', email: 'buyer@example.com', orderNumber: '000123456', amount: 500, transactionNumber: 'PAY-A', transactionType: 'zelle', orderSummary: summary }] });
+  render(<MemoryRouter><TransactionRecords /></MemoryRouter>);
+  expect(await screen.findByText(/Total: \$1500\.00/)).toBeInTheDocument();
+  expect(screen.getByText(/Remaining: \$1000\.00/)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Confirm' })).toBeInTheDocument();
+});
+it('loads one fulfillment row per order from the order endpoint', async () => {
+  localStorage.setItem('role', 'processTeam');
+  apiFetch.mockImplementation(async path => ({ ok: true, json: async () => path.startsWith('/orders') ? { orders: [{ ...summary, confirmedCents: 150000, remainingCents: 0, releaseState: 'released' }], total: 1 } : [] }));
+  render(<MemoryRouter><TransactionRecords /></MemoryRouter>);
+  expect(await screen.findByText('000123456')).toBeInTheDocument();
+  expect(screen.getAllByText('000123456')).toHaveLength(1);
+  expect(apiFetch).toHaveBeenCalledWith(expect.stringContaining('/orders?eligible=true'));
+});
+it('refreshes order balances after accounting actions', async () => {
+  const PaymentOrders = require('./PaymentOrders').default;
+  localStorage.setItem('role', 'accounting');
+  apiFetch.mockImplementation(async (path, options) => ({ ok: true, json: async () => options ? { order: summary } : path === '/orders/order1' ? { order: summary, payments: [], jobs: [] } : { orders: [summary], total: 1 } }));
+  render(<PaymentOrders />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Payment history' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Retry release' }));
+  expect(await screen.findByRole('button', { name: 'Retry release' })).toBeInTheDocument();
+  expect(apiFetch).toHaveBeenCalledWith('/orders/order1/retry-release', expect.objectContaining({ method: 'PATCH' }));
 });
