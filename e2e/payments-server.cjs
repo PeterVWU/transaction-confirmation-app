@@ -54,7 +54,7 @@ async function start() {
   app.get('/api/test-effects', (req, res) => res.json({ captures, notices }));
   app.use(express.static(path.resolve(__dirname, '../build')));
   app.get('*path', (req, res) => res.sendFile(path.resolve(__dirname, '../build/index.html')));
-  const servers = [app.listen(3000, '127.0.0.1'), app.listen(3001, '127.0.0.1')];
+  const servers = [app.listen(Number(process.env.ECOM343_TEST_BACKEND_PORT || 3000), '127.0.0.1'), app.listen(Number(process.env.ECOM343_TEST_FRONTEND_PORT || 3001), '127.0.0.1')];
   const timer = setInterval(async () => {
     if (running || resetting) return;
     running = true;

@@ -44,7 +44,7 @@ npm run e2e
 
 Stop the manual demo before running Playwright: the test runner starts its own isolated server on the same ports. Default browser journeys run in Chromium with mocked external services and reset the test database between tests. To run only the installment journey, use `npx playwright test --config playwright.payments.config.ts`.
 
-Validated for ECOM-343: 8 frontend tests, a successful production build, and 6 Chromium journeys. Backend verification passed 95 affected tests; its full suite also has 12 failures in unchanged authentication/user-management expectations. Details and commands are recorded in the backend rollout guide.
+Validated for ECOM-343: 8 frontend tests, a successful production build, and 6 Chromium journeys. Backend verification passed 96 affected tests; its full suite also has 12 failures in unchanged authentication/user-management expectations. Details and commands are recorded in the backend rollout guide.
 
 Screenshots captured by the installment journey:
 
@@ -56,3 +56,5 @@ Screenshots captured by the installment journey:
 Use the matching `feature/ecom-343-multiple-payments` backend revision. See [the backend rollout and recovery guide](https://github.com/PeterVWU/transaction-confirmation-backend/blob/feature/ecom-343-multiple-payments/MULTIPLE-PAYMENTS.md) for migrations, flags, transaction support, API changes, monitoring, and rollback.
 
 Real payment writes remain paused until the backend migration is verified and `MULTIPLE_PAYMENTS_ENABLED=true` is configured. Deploy the matching frontend and backend together after the documented rollout prerequisites. The local demo enables its own test-only feature flag automatically.
+
+When the manual demo occupies ports 3000/3001, run browser tests with `ECOM343_TEST_FRONTEND_PORT=3311 ECOM343_TEST_BACKEND_PORT=3310 npm run e2e`.
