@@ -8,6 +8,7 @@ import TransactionRecords from './TransactionRecords';
 import PublicRoute from './PublicRoute';
 import UserManagement from './UserManagement';
 import OrderDetail from './OrderDetail';
+import PaymentOrders from './PaymentOrders';
 import ResetPassword from './ResetPassword';
 import NotificationSettings from './NotificationSettings';
 import { apiFetch } from './api'; // Make sure this import exists
@@ -142,6 +143,7 @@ function App() {
             </>
           )}
         </Box>
+        {user && <Button component={Link} to="/orders">Order payments</Button>}
         <Box sx={{ mt: 4, flex: 1 }}>
           <Routes>
             <Route
@@ -177,7 +179,8 @@ function App() {
                 </AdminRoute>
               }
             />
-            <Route path="/order/:orderNumber" element={<OrderDetail />} />
+            <Route path="/orders" element={user ? <PaymentOrders /> : <Navigate to="/login" replace />} />
+            <Route path="/order/:orderNumber" element={user ? <OrderDetail /> : <Navigate to="/login" replace />} />
             <Route path="/reset-password" element={user ? <ResetPassword /> : <Navigate to="/login" replace />} />
             <Route
               path="/admin/notification-settings"
