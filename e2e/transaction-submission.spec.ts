@@ -16,7 +16,7 @@ test('accepts repeated order numbers and reports normalized duplicate references
     await page.getByLabel('Transaction Number', { exact: false }).fill(reference);
     await page.getByLabel('Transaction Type', { exact: true }).selectOption('zelle');
     await page.getByRole('button', { name: 'Submit', exact: true }).click();
-    if (reference === ' ref-a ') await expect(page.getByText('This payment reference has already been submitted for this payment method.')).toBeVisible();
+    if (reference === ' ref-a ') await expect(page.getByText('This payment reference has already been submitted for this order and payment method.')).toBeVisible();
     else await expect(page.getByText('Transaction submitted!', { exact: true })).toBeVisible();
   }
 });

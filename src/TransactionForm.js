@@ -10,10 +10,16 @@ export default function TransactionForm() {
   const [transactionType, setTransactionType] = useState('');
   const [message, setMessage] = useState('');
   const [errors, setErrors] = useState({});
+  const [duplicateReference, setDuplicateReference] = useState(false);
 
   const change = (field, setter) => (event) => {
     setter(event.target.value);
-    setErrors(previous => ({ ...previous, [field]: undefined }));
+    setErrors(previous => ({
+      ...previous,
+      [field]: undefined,
+      ...(duplicateReference && ['orderNumber', 'transactionType', 'transactionNumber'].includes(field) ? { transactionNumber: undefined } : {}),
+    }));
+    if (['orderNumber', 'transactionType', 'transactionNumber'].includes(field)) setDuplicateReference(false);
     setMessage('');
   };
 
@@ -52,6 +58,7 @@ export default function TransactionForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrors({});
+    setDuplicateReference(false);
     setMessage('');
 
     const errs = validate();
@@ -75,6 +82,7 @@ export default function TransactionForm() {
     }
 
     if (res.code === 'DUPLICATE_PAYMENT_REFERENCE') {
+      setDuplicateReference(true);
       setErrors({ transactionNumber: res.message });
       return;
     }
@@ -113,7 +121,7 @@ export default function TransactionForm() {
       <Typography variant="h5" gutterBottom>
         Submit Transaction
       </Typography>
-      <Typography sx={{ mb: 2 }}>Submit one transfer per form. You may reuse the original order number for each installment. Only USD payments are supported.</Typography>
+      <Typography sx={{ mb: 2 }}>If one payment covers multiple orders, submit a separate form for each order using the same transaction number. Enter only the amount allocated to that order. You may reuse the original order number for each installment. Only USD payments are supported.</Typography>
       {message && (
         <Alert severity={message === 'Transaction submitted!' ? 'success' : 'error'} sx={{ mb: 2 }}>
           {message}

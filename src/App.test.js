@@ -5,5 +5,5 @@ it('renders the payment submission portal', async () => {
   localStorage.clear();
   render(<App />);
   expect(await screen.findByText('Transaction Confirmation Portal')).toBeInTheDocument();
-  expect(screen.getByText(/one transfer per form/i)).toBeInTheDocument();
+  expect(screen.getByText(/Enter only the amount allocated to that order/i)).toBeInTheDocument();
 });

@@ -44,3 +44,26 @@ test('three customer transfers release one order after the last accounting confi
   expect(effects.captures).toHaveLength(1);
   expect(effects.notices.filter((name: string) => name === 'notifyProcessTeamConfirmed')).toHaveLength(1);
 });
+test('accepts separate order allocations using the same transaction number', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByText(/Enter only the amount allocated to that order/)).toBeVisible();
+  for (const [order, amount] of [['000123456', '200'], ['000999999', '350']]) {
+    await page.getByLabel('Email', { exact: false }).fill('buyer@example.test');
+    await page.getByLabel('Amount', { exact: false }).fill(amount);
+    await page.getByLabel('Order Number', { exact: false }).fill(order);
+    await page.getByLabel('Transaction Number', { exact: false }).fill('SHARED-TRANSFER');
+    await page.getByLabel('Transaction Type', { exact: true }).selectOption('zelle');
+    await page.getByRole('button', { name: 'Submit', exact: true }).click();
+    await expect(page.getByText('Transaction submitted!', { exact: true })).toBeVisible();
+  }
+  await page.getByLabel('Email', { exact: false }).fill('buyer@example.test');
+  await page.getByLabel('Amount', { exact: false }).fill('200');
+  await page.getByLabel('Order Number', { exact: false }).fill('000123456');
+  await page.getByLabel('Transaction Number', { exact: false }).fill('shared-transfer');
+  await page.getByLabel('Transaction Type', { exact: true }).selectOption('zelle');
+  await page.getByRole('button', { name: 'Submit', exact: true }).click();
+  await expect(page.getByText('This payment reference has already been submitted for this order and payment method.')).toBeVisible();
+  await page.getByLabel('Order Number', { exact: false }).fill('000888888');
+  await expect(page.getByText('This payment reference has already been submitted for this order and payment method.')).not.toBeVisible();
+  await page.screenshot({ path: '/tmp/order-allocation-form.png', fullPage: true });
+});

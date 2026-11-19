@@ -12,19 +12,19 @@ beforeEach(() => jest.clearAllMocks());
 it('explains installments and trims the original order number and reference', async () => {
   submitTransaction.mockResolvedValue({ _id: '1' });
   render(<TransactionForm />);
-  expect(screen.getByText(/one transfer per form/i)).toBeInTheDocument();
+  expect(screen.getByText(/If one payment covers multiple orders, submit a separate form for each order using the same transaction number. Enter only the amount allocated to that order./)).toBeInTheDocument();
   fill();
   fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
   await screen.findByText('Transaction submitted!');
   expect(submitTransaction).toHaveBeenCalledWith(expect.objectContaining({ orderNumber: '000123456', transactionNumber: 'REF-A', amount: '500' }));
 });
-it('displays duplicate-reference errors and clears them when the reference changes', async () => {
+it.each([['Transaction Number', 'NEW'], ['Order Number', '000999999'], ['Transaction Type', 'wire_transfer']])('clears duplicate-reference errors when %s changes', async (label, value) => {
   submitTransaction.mockResolvedValue({ code: 'DUPLICATE_PAYMENT_REFERENCE', message: 'Reference already submitted.' });
   render(<TransactionForm />);
   fill();
   fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
   await screen.findByText('Reference already submitted.');
-  fireEvent.change(screen.getByLabelText(/Transaction Number/), { target: { value: 'NEW' } });
+  fireEvent.change(screen.getByLabelText(new RegExp(`^${label}`)), { target: { value } });
   expect(screen.queryByText('Reference already submitted.')).not.toBeInTheDocument();
 });
 it('shows actual validation errors and handles network failures', async () => {
